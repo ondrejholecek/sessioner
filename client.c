@@ -342,6 +342,7 @@ int main(int argc, char *argv[]) {
 				wp.directions[wp.directionCount] = directionInit(lAddr, port, 1);
 				wp.directionCount++;
 			}
+			free(lAddr);
 
 			break;
 		case 's':
@@ -520,6 +521,9 @@ int main(int argc, char *argv[]) {
 	for (unsigned int i = 0; i < wp.directionCount; i++) {
 		closeAllConnections(wp.ep, wp.directions[i]);
 		hashDestroy(wp.directions[i]->sessions);
+		free(wp.directions[i]->remoteIp);
+		free(wp.directions[i]);
 	}
 	close(wp.ep);
+	free(wp.directions);
 }
