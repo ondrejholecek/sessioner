@@ -287,35 +287,13 @@ void *worker2(void *param) {
 }
 
 int main(int argc, char *argv[]) {
-	// disable fd limits
-	FILE *nropen = fopen("/proc/sys/fs/nr_open", "r");
-	if (nropen == NULL) {
-		fprintf(stderr, "Unable to disable descriptors limit: %s\n", strerror(errno));
-	}
-
-	unsigned int maxfiles;
-	if (fscanf(nropen, "%u", &maxfiles) != 1) {
-		fprintf(stderr, "Unable to disable descriptors limit: /proc/sys/fs/nr_open format error\n");
-	}
-	fclose(nropen);
-
-	struct rlimit limits;
-	limits.rlim_cur = maxfiles;
-	limits.rlim_max = maxfiles;
-
-	if (setrlimit(RLIMIT_NOFILE, &limits) == -1) {
-		fprintf(stderr, "Unable to disable descriptors limit: %s\n", strerror(errno));
-	}
-	
-	if (getrlimit(RLIMIT_NOFILE, &limits) == -1) {
-		fprintf(stderr, "Unable to get descriptors limit: %s\n", strerror(errno));
-	}
-
 	//
 	struct workerParam wp;
 	wp.ep              = epoll_create(100000);
 	wp.directions      = NULL;
 	wp.directionCount  = 0;
+
+	int ulimit_fd = 1;
 
 	while (1) {
 		static struct option long_options[] = {
@@ -324,9 +302,10 @@ int main(int argc, char *argv[]) {
 			{"debug",      no_argument,       0,  'd' },
 			{"ping",       no_argument,       0,  'p' },
 			{"help",       no_argument,       0,  'h' },
+			{"no-ulimit",  no_argument,       0,  'u' },
 		};
 
-		int c = getopt_long(argc, argv, "t:s:dph", long_options, NULL);
+		int c = getopt_long(argc, argv, "t:s:dphu", long_options, NULL);
 		if (c == -1) break;
 		
 		switch (c) {
@@ -373,6 +352,10 @@ int main(int argc, char *argv[]) {
 			debug = 1;
 			break;
 
+		case 'u':
+			ulimit_fd = 0;
+			break;
+
 		case 'p':
 			ping = 1;
 			break;
@@ -382,6 +365,7 @@ int main(int argc, char *argv[]) {
 			fprintf(stderr, "       -h         ... show this help\n");
 			fprintf(stderr, "       -d         ... enable debug outputs\n");
 			fprintf(stderr, "       -p         ... ping through connections periodically\n");
+			fprintf(stderr, "       -u         ... do not try to change resource limits on file descriptors\n");
 			fprintf(stderr, "       --target   ... connect on IP address and port\n");
 			fprintf(stderr, "                      optionally port range can be specified\n");
 			fprintf(stderr, "                      this option can appear multiple times\n");
@@ -394,6 +378,33 @@ int main(int argc, char *argv[]) {
 	if (wp.directionCount == 0) {
 		fprintf(stderr, "No remote ends specified.\nUse --connect parameter to specify at least one or -h for more information.\n");
 		exit(1);
+	}
+
+	if (ulimit_fd) {
+		// disable fd limits
+		FILE *nropen = fopen("/proc/sys/fs/nr_open", "r");
+		if (nropen == NULL) {
+			fprintf(stderr, "Unable to disable descriptors limit: %s\n", strerror(errno));
+		}
+	
+		unsigned int maxfiles;
+		if (fscanf(nropen, "%u", &maxfiles) != 1) {
+			fprintf(stderr, "Unable to disable descriptors limit: /proc/sys/fs/nr_open format error\n");
+		}
+		fclose(nropen);
+	
+		struct rlimit limits;
+		limits.rlim_cur = maxfiles;
+		limits.rlim_max = maxfiles;
+	
+		if (setrlimit(RLIMIT_NOFILE, &limits) == -1) {
+			fprintf(stderr, "Unable to disable descriptors limit: %s\n", strerror(errno));
+		}
+	}
+	
+	struct rlimit limits;
+	if (getrlimit(RLIMIT_NOFILE, &limits) == -1) {
+		fprintf(stderr, "Unable to get descriptors limit: %s\n", strerror(errno));
 	}
 
 	pthread_t workerThread1, workerThread2;
