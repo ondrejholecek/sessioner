@@ -84,12 +84,12 @@ void registerEpollListeners(int ep, char *ip, unsigned short portStart, unsigned
 }
 
 void handleEpoll(int ep) {
-	struct epoll_event events[1024];
+	struct epoll_event events[32768];
 
 	for (;;) {
 		if (terminate) { break; }
 
-		int nfds = epoll_wait(ep, events, sizeof(events), 250);
+		int nfds = epoll_wait(ep, events, 32768, 250);
 		if (nfds == -1) {
 			fprintf(stderr, "Cannot wait for epoll events: %s\n", strerror(errno));
 			exit(3);
@@ -176,13 +176,31 @@ void handleDataFromClient(int ep, struct socketInfo *sInfo) {
 	char buffer[1024];
 	int  r;
 
-	r = recv(sInfo->sockfd, buffer, sizeof(buffer)-1, 0);
+	r = recv(sInfo->sockfd, buffer, 1024-1, 0);
 	if (r == -1) {
 		fprintf(stderr, "Unable to receive data from client %s:%d->%s:%d: %s\n",
 			sInfo->data.client->remoteIp, sInfo->data.client->remotePort,
 			sInfo->data.client->localIp,  sInfo->data.client->localPort,
 			strerror(errno));
-		exit(4);
+
+		if (epoll_ctl(ep, EPOLL_CTL_DEL, sInfo->sockfd, NULL) == -1) {
+			fprintf(stderr, "Unable to remove client %s:%u->%s:%u from epoll: %s\n",
+				sInfo->data.client->remoteIp, sInfo->data.client->remotePort,
+				sInfo->data.client->localIp, sInfo->data.client->localPort,
+				strerror(errno));
+			exit(4);
+		}
+
+		hashDelete(clients, sInfo->sockfd);
+
+		shutdown(sInfo->sockfd, SHUT_RDWR);
+		close(sInfo->sockfd);
+
+		free(sInfo->data.client->localIp);
+		free(sInfo->data.client->remoteIp);
+		free(sInfo->data.client);
+		free(sInfo);
+		return;
 	}
 
 	time(&sInfo->lastAction);
@@ -201,6 +219,10 @@ void handleDataFromClient(int ep, struct socketInfo *sInfo) {
 		}
 
 		hashDelete(clients, sInfo->sockfd);
+
+		shutdown(sInfo->sockfd, SHUT_RDWR);
+		close(sInfo->sockfd);
+
 		free(sInfo->data.client->localIp);
 		free(sInfo->data.client->remoteIp);
 		free(sInfo->data.client);
@@ -303,18 +325,19 @@ int main(int argc, char *argv[]) {
 	}
 
 	//
-	clients   = hashInit(10000);
 	listeners = hashInit(1000);
+	unsigned int clientHashSize = 10000;
 	int ep = epoll_create(100000);
 
 	while (1) {
 		static struct option long_options[] = {
 			{"listen",     required_argument, 0,  'l' },
+			{"hashsize",   required_argument, 0,  's' },
 			{"debug",      no_argument,       0,  'd' },
 			{"help",       no_argument,       0,  'h' },
 		};
 
-		int c = getopt_long(argc, argv, "l:dh", long_options, NULL);
+		int c = getopt_long(argc, argv, "l:s:dph", long_options, NULL);
 		if (c == -1) break;
 		
 		switch (c) {
@@ -348,9 +371,15 @@ int main(int argc, char *argv[]) {
 			if (debug) fprintf(stderr, "Preparing listener on %s with listening ports %d-%d\n", lAddr, lPortStart, lPortEnd);
 			registerEpollListeners(ep, lAddr, lPortStart, lPortEnd);
 			break;
+
+		case 's':
+			clientHashSize = atoi(optarg);
+			break;
+
 		case 'd':
 			debug = 1;
 			break;
+
 		case 'h':
 			fprintf(stderr, "Usage: %s [-dh] --listen ip:port[-port]\n");
 			fprintf(stderr, "       -h         ... show this help\n");
@@ -358,6 +387,7 @@ int main(int argc, char *argv[]) {
 			fprintf(stderr, "       --listen   ... listen on IP address and port\n");
 			fprintf(stderr, "                      optionally port range can be specified\n");
 			fprintf(stderr, "                      this option can appear multiple times\n");
+			fprintf(stderr, "       --hashsize ... size of primary hashing table for clients\n");
 			return 0;
 			break;
 		}
@@ -368,6 +398,8 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
+	clients   = hashInit(clientHashSize);
+
 	pthread_t workerThread;
 	if (pthread_create(&workerThread, NULL, worker, &ep) == -1) {
 		fprintf(stderr, "Unable to start worker thread: %s\n", strerror(errno));
@@ -375,13 +407,13 @@ int main(int argc, char *argv[]) {
 	}
 
 	char last[1024];
-	bzero(last, sizeof(last));
+	bzero(last, 1024);
 
 	for (;;) {
-		fprintf(stdout, "reponder $ ");
+		fprintf(stdout, "responder $ ");
 
 		char line[1024];
-		if (fgets(line, sizeof(line), stdin) == NULL) {
+		if (fgets(line, 1024, stdin) == NULL) {
 			fprintf(stdout, "\n");
 			strcpy(line, "quit\n");
 		}
@@ -394,9 +426,14 @@ int main(int argc, char *argv[]) {
 		if (strcmp(line, "status") == 0) {
 			fprintf(stdout, "Connected clients        : %u\n", hashGetActive(clients));
 			fprintf(stdout, "Active listeners         : %u\n", hashGetActive(listeners));
+			fprintf(stdout, "Clients hash size        : %u\n", clientHashSize);
 			fprintf(stdout, "Clients hash max depth   : %u\n", hashGetDepth(clients));
 			fprintf(stdout, "Listeners hash max depth : %u\n", hashGetDepth(listeners));
 			fprintf(stdout, "Max descriptors limit    : %u/%u\n", limits.rlim_cur, limits.rlim_max);
+			if (debug) 
+				fprintf(stdout, "Debug output             : yes\n");
+			else
+				fprintf(stdout, "Debug output             : no\n");
 
 		} else if (strcmp(line, "list") == 0) {
 			unsigned int allCount;
@@ -443,6 +480,7 @@ int main(int argc, char *argv[]) {
 			fprintf(stdout, "Unknown command \"%s\", valid commands are:\n", line);
 			fprintf(stdout, "- status          ... show number of currently connected clients\n");
 			fprintf(stdout, "- list            ... list IP addresses and ports of all established sessions\n");
+			fprintf(stdout, "- listeners       ... show information about active listeners\n");
 			fprintf(stdout, "- debug           ... toggle the debug log\n");
 			fprintf(stdout, "- quit            ... close all clients and exit\n");
 			continue;
