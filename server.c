@@ -266,6 +266,10 @@ void closeAllClients(int ep) {
 			hashDelete(clients, allInfos[i]->sockfd);
 			shutdown(allInfos[i]->sockfd, SHUT_RDWR);
 			close(allInfos[i]->sockfd);
+			free(allInfos[i]->data.client->localIp);
+			free(allInfos[i]->data.client->remoteIp);
+			free(allInfos[i]->data.client);
+			free(allInfos[i]);
 		}
 		free(allInfos);
 }
@@ -287,7 +291,12 @@ void closeAllListeners(int ep) {
 
 			hashDelete(listeners, allInfos[i]->sockfd);
 			close(allInfos[i]->sockfd);
+
+			free(allInfos[i]->data.listener->listenIp);
+			free(allInfos[i]->data.listener);
+			free(allInfos[i]);
 		}
+
 		free(allInfos);
 }
 
@@ -300,34 +309,12 @@ void *worker(void *param) {
 
 int main(int argc, char *argv[]) {
 
-	// disable fd limits
-	FILE *nropen = fopen("/proc/sys/fs/nr_open", "r");
-	if (nropen == NULL) {
-		fprintf(stderr, "Unable to disable descriptors limit: %s\n", strerror(errno));
-	}
-
-	unsigned int maxfiles;
-	if (fscanf(nropen, "%u", &maxfiles) != 1) {
-		fprintf(stderr, "Unable to disable descriptors limit: /proc/sys/fs/nr_open format error\n");
-	}
-	fclose(nropen);
-
-	struct rlimit limits;
-	limits.rlim_cur = maxfiles;
-	limits.rlim_max = maxfiles;
-
-	if (setrlimit(RLIMIT_NOFILE, &limits) == -1) {
-		fprintf(stderr, "Unable to disable descriptors limit: %s\n", strerror(errno));
-	}
-	
-	if (getrlimit(RLIMIT_NOFILE, &limits) == -1) {
-		fprintf(stderr, "Unable to get descriptors limit: %s\n", strerror(errno));
-	}
-
 	//
 	listeners = hashInit(1000);
 	unsigned int clientHashSize = 10000;
 	int ep = epoll_create(100000);
+
+	int ulimit_fd = 1;
 
 	while (1) {
 		static struct option long_options[] = {
@@ -335,9 +322,10 @@ int main(int argc, char *argv[]) {
 			{"hashsize",   required_argument, 0,  's' },
 			{"debug",      no_argument,       0,  'd' },
 			{"help",       no_argument,       0,  'h' },
+			{"no-ulimit",  no_argument,       0,  'u' },
 		};
 
-		int c = getopt_long(argc, argv, "l:s:dph", long_options, NULL);
+		int c = getopt_long(argc, argv, "l:s:dphu", long_options, NULL);
 		if (c == -1) break;
 		
 		switch (c) {
@@ -370,6 +358,7 @@ int main(int argc, char *argv[]) {
 
 			if (debug) fprintf(stderr, "Preparing listener on %s with listening ports %d-%d\n", lAddr, lPortStart, lPortEnd);
 			registerEpollListeners(ep, lAddr, lPortStart, lPortEnd);
+			free(lAddr);
 			break;
 
 		case 's':
@@ -380,10 +369,15 @@ int main(int argc, char *argv[]) {
 			debug = 1;
 			break;
 
+		case 'u':
+			ulimit_fd = 0;
+			break;
+
 		case 'h':
-			fprintf(stderr, "Usage: %s [-dh] --listen ip:port[-port]\n");
+			fprintf(stderr, "Usage: %s [-dh] --listen ip:port[-port]\n", argv[0]);
 			fprintf(stderr, "       -h         ... show this help\n");
 			fprintf(stderr, "       -d         ... enable debug outputs\n");
+			fprintf(stderr, "       -u         ... do not try to change resource limits on file descriptors\n");
 			fprintf(stderr, "       --listen   ... listen on IP address and port\n");
 			fprintf(stderr, "                      optionally port range can be specified\n");
 			fprintf(stderr, "                      this option can appear multiple times\n");
@@ -397,6 +391,34 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "No listeners specified.\nUse --listen parameter to specify at least one or -h for more information.\n");
 		exit(1);
 	}
+
+	if (ulimit_fd) {
+		// disable fd limits
+		FILE *nropen = fopen("/proc/sys/fs/nr_open", "r");
+		if (nropen == NULL) {
+			fprintf(stderr, "Unable to disable descriptors limit: %s\n", strerror(errno));
+		}
+	
+		unsigned int maxfiles;
+		if (fscanf(nropen, "%u", &maxfiles) != 1) {
+			fprintf(stderr, "Unable to disable descriptors limit: /proc/sys/fs/nr_open format error\n");
+		}
+		fclose(nropen);
+	
+		struct rlimit limits;
+		limits.rlim_cur = maxfiles;
+		limits.rlim_max = maxfiles;
+	
+		if (setrlimit(RLIMIT_NOFILE, &limits) == -1) {
+			fprintf(stderr, "Unable to disable descriptors limit: %s\n", strerror(errno));
+		}
+	}
+		
+	struct rlimit limits;
+	if (getrlimit(RLIMIT_NOFILE, &limits) == -1) {
+		fprintf(stderr, "Unable to get descriptors limit: %s\n", strerror(errno));
+	}
+
 
 	clients   = hashInit(clientHashSize);
 

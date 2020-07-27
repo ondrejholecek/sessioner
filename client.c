@@ -498,7 +498,7 @@ int main(int argc, char *argv[]) {
 			fprintf(stdout, "- details         ... show more information about each target\n");
 			fprintf(stdout, "- set NUM         ... set the number of required connections\n");
 			fprintf(stdout, "- debug           ... toggle the debug log\n");
-			fprintf(stdout, "- ping            ... toggle the ping through the established connectionsn");
+			fprintf(stdout, "- ping            ... toggle the ping through the established connections\n");
 			fprintf(stdout, "- quit            ... close all clients and exit\n");
 			continue;
 		}
