@@ -1,3 +1,10 @@
+# Binaries
+/initiator
+/responder
+
+# Vim backups
+*.sw?
+
 # Prerequisites
 *.d
 
