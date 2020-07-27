@@ -325,7 +325,7 @@ int main(int argc, char *argv[]) {
 			{"no-ulimit",  no_argument,       0,  'u' },
 		};
 
-		int c = getopt_long(argc, argv, "l:s:dphu", long_options, NULL);
+		int c = getopt_long(argc, argv, "l:s:dhu", long_options, NULL);
 		if (c == -1) break;
 		
 		switch (c) {
