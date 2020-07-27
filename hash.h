@@ -24,5 +24,4 @@ unsigned int hashGetActive(struct intHash *hash);
 unsigned int hashGetDepth(struct intHash *hash);
 void **hashGetAll(struct intHash *hash, unsigned int *count);
 
-
 #endif

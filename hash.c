@@ -84,14 +84,17 @@ int hashDelete(struct intHash *hash, unsigned int index) {
 			if (field->next == NULL && field->prev == NULL) {
 				hash->data[hi] = NULL;
 
-			} else if (field->next == NULL) {
+			} else if (field->next == NULL && field->prev != NULL) {
 				field->prev->next = NULL;
 
-			} else if (field->prev == NULL) {
+			} else if (field->next != NULL && field->prev == NULL) {
 				hash->data[hi] = field->next;
+				hash->data[hi]->prev = NULL;
 
-			} else {
+			} else { // field->next != NULL && field->prev != NULL
 				// we can never get here
+				field->prev->next = field->next;
+				field->next->prev = field->prev;
 			}
 
 			free(field);
@@ -103,6 +106,8 @@ int hashDelete(struct intHash *hash, unsigned int index) {
 
 		field = field->next;
 	}
+
+	fprintf(stderr, "Unable to delete non-existing index %u\n", index);
 
 	pthread_mutex_unlock(&hash->lock);
 	return 0;
@@ -151,3 +156,4 @@ void **hashGetAll(struct intHash *hash, unsigned int *count) {
 	pthread_mutex_unlock(&hash->lock);
 	return all;
 }
+
