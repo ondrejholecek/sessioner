@@ -1,0 +1,16 @@
+Source: sessioner
+Section: unknown
+Priority: optional
+Maintainer: Ondrej Holecek <ondrej@holecek.eu>
+Build-Depends: debhelper (>= 11)
+Standards-Version: 4.1.3
+Homepage: https://github.com/ondrejholecek/sessioner
+
+Package: sessioner
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Sessioner open and maintains TCP sessions
+ Sessioner's purpose is to open and maintain very high
+ number to TCP sessions between two hosts.
+ It was written for testing vMotion in VMware environment
+ but can be used anywhere.
