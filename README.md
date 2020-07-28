@@ -34,7 +34,7 @@ Usage: ./sessioner_responder [-dh] --listen ip:port[-port]
                 clients. When you are testing with more clients you will need to increase this appropriately otherwise accepting new clients will be quite slow.
 - `--listen` The most important and the only required parameter. It specified where the responder should wait for new connections. It can be specified many times.
    It can be as simple as `10.0.0.1:5000` or it can be a continous range of ports to listen on like `10.0.0.1:5000-5999`. Reason for using multiple listening
-   ports is that for two hosts and one listening port there are usually only about 28,000 possible connections (see Ports selection section).
+   ports is that for two hosts and one listening port there are usually only about 28,000 possible connections (see [Ports selection](#port-selection) section).
    
 ### Commands
 
@@ -117,7 +117,7 @@ Usage: ./sessioner_initiator [-dph] --target ip:port[-port] [--hashsize NUM]
   `--target` configured after `--hashsize` parameters will have the specific size configured. It is usually not necessary to change the default (10,000).
 - `--target` Specifies the remote IP and port where responder is listening. It can be specified many times. It can be as simple as `10.0.0.1:5000` or it 
              can be a continous range of ports to listen on like `10.0.0.1:5000-5999`. Reason for using multiple listening ports is that for two hosts and
-             one listening port there are usually only about 28,000 possible connections (see Ports selection section).
+             one listening port there are usually only about 28,000 possible connections (see [Ports selection](#port-selection) section).
 
 ### Commands
 
