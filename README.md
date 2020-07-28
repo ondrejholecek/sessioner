@@ -184,3 +184,157 @@ Debug output disabled
 - `quit` Terminate all sessions and quit.
 
 Pressing enter without typing any command will just repeat the last command.
+
+
+## Other notes
+
+### Port selection
+
+When testing is happening between two hosts with one usable IP address on each and you specify ony one listening port, the maximal number of possible
+sessions that can be established on generic Linux distribution is about 28,000. It is because of following sysctl setting:
+
+```
+# sysctl net.ipv4.ip_local_port_range
+net.ipv4.ip_local_port_range = 32768	60999
+```
+
+This sysctl specifies the ports that can be used for outgoing connections. In the case there are 28,231 ports available. 
+
+You can change this sysctl, but it is better to specify more ports and/or IP addresses. Then every combination of IP and port can establish about 28,000
+sessions. For 1 million sessions you need about 40 combinations. 
+
+### Maximum number of file descriptors
+
+Both initiator and responder will try to configure the highest possible number of open file descriptors, unless `-u` parameter was specified.
+
+This limit is specified in `/proc/sys/fs/nr_open` and is usually slighly above 1 million. 
+```
+# cat /proc/sys/fs/nr_open
+1048576
+```
+
+That is why it is not possible to open more than roughly 1 million sessions between one initiator and responder.
+
+## Example 
+
+- Start responder on host testB. Listen on single IP address and one hundred ports from 3000 to 3099. In the status output we can see there are
+  indeed 100 configured listeners and the are no connected clients yet.
+```
+root@testB:~# sessioner_responder --hashsize 100000 --listen 10.109.80.40:3000-3099
+responder $ status
+Connected clients        : 0
+Active listeners         : 100
+Clients hash size        : 100000
+Clients hash max depth   : 0
+Listeners hash max depth : 1
+Max descriptors limit    : 1048576/1048576
+Debug output             : no
+```
+
+- Start initiator on hostA. Configure 100 targets - all on IP 10.109.80.40 and ports from 3000 to 3099. After start the initiator establishes
+  one session per target, therefore there is now 100 sessions established.
+```
+root@testA:~# sessioner_initiator --target 10.109.80.40:3000-3099
+initiator $ status
+Connections requested    : 100
+Connected clients        : 100
+Configured targets       : 100
+Max descriptors limit    : 1048576/1048576
+Ping through connections : no
+Debug output             : no
+```
+
+- We can verify the same numbers of established sessions are seen on responder.
+```
+responder $ status
+Connected clients        : 100
+Active listeners         : 100
+Clients hash size        : 100000
+Clients hash max depth   : 1
+Listeners hash max depth : 1
+Max descriptors limit    : 1048576/1048576
+Debug output             : no
+```
+
+- Now configure initiator to have 100,000 sessions established.
+```
+initiator $ set 100000
+```
+
+- It will take some time. We can monitor the progress by executing `status` command. Empty command will repeat the previous command.
+```
+initiator $ status
+Connections requested    : 100000
+Connected clients        : 2652
+Configured targets       : 100
+Max descriptors limit    : 1048576/1048576
+Ping through connections : no
+Debug output             : no
+initiator $
+Connections requested    : 100000
+Connected clients        : 33900
+Configured targets       : 100
+Max descriptors limit    : 1048576/1048576
+Ping through connections : no
+Debug output             : no
+initiator $
+Connections requested    : 100000
+Connected clients        : 63036
+Configured targets       : 100
+Max descriptors limit    : 1048576/1048576
+Ping through connections : no
+Debug output             : no
+initiator $
+Connections requested    : 100000
+Connected clients        : 100000
+Configured targets       : 100
+Max descriptors limit    : 1048576/1048576
+Ping through connections : no
+Debug output             : no
+```
+
+- We can do the same monitoring on responder.
+```
+responder $ status
+Connected clients        : 8650
+Active listeners         : 100
+Clients hash size        : 100000
+Clients hash max depth   : 1
+Listeners hash max depth : 1
+Max descriptors limit    : 1048576/1048576
+Debug output             : no
+responder $
+Connected clients        : 23300
+Active listeners         : 100
+Clients hash size        : 100000
+Clients hash max depth   : 1
+Listeners hash max depth : 1
+Max descriptors limit    : 1048576/1048576
+Debug output             : no
+responder $
+Connected clients        : 34836
+Active listeners         : 100
+Clients hash size        : 100000
+Clients hash max depth   : 1
+Listeners hash max depth : 1
+Max descriptors limit    : 1048576/1048576
+Debug output             : no
+responder $
+Connected clients        : 64073
+Active listeners         : 100
+Clients hash size        : 100000
+Clients hash max depth   : 1
+Listeners hash max depth : 1
+Max descriptors limit    : 1048576/1048576
+Debug output             : no
+responder $
+Connected clients        : 100000
+Active listeners         : 100
+Clients hash size        : 100000
+Clients hash max depth   : 1
+Listeners hash max depth : 1
+Max descriptors limit    : 1048576/1048576
+Debug output             : no
+```
+
+- Now we have 100,000 connected sessions.
