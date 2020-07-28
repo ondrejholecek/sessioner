@@ -10,6 +10,7 @@ Sessioner consists of two binaries - `sessioner_initiator` and `sessioner_respon
 
 After started, each program shows its own prompt for getting runtime status and changing the number of required connections.
 
+Impatients can jump directly to [Example section](#example).
 
 ## sessioner_responder
 
