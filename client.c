@@ -377,7 +377,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (wp.directionCount == 0) {
-		fprintf(stderr, "No remote ends specified.\nUse --connect parameter to specify at least one or -h for more information.\n");
+		fprintf(stderr, "No remote ends specified.\nUse --target parameter to specify at least one or -h for more information.\n");
 		exit(1);
 	}
 
