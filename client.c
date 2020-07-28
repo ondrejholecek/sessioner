@@ -362,7 +362,7 @@ int main(int argc, char *argv[]) {
 			break;
 
 		case 'h':
-			fprintf(stderr, "Usage: %s [-dph] --target ip:port[-port] [--hashsize NUM]\n");
+			fprintf(stderr, "Usage: %s [-dph] --target ip:port[-port] [--hashsize NUM]\n", argv[0]);
 			fprintf(stderr, "       -h         ... show this help\n");
 			fprintf(stderr, "       -d         ... enable debug outputs\n");
 			fprintf(stderr, "       -p         ... ping through connections periodically\n");
@@ -458,14 +458,14 @@ int main(int argc, char *argv[]) {
 
 		} else if (strcmp(line, "details") == 0) {
 			for (unsigned int i = 0; i < wp.directionCount; i++) {
-				fprintf(stdout, "Direction to %s:%u:\n", wp.directions[i]->remoteIp, wp.directions[i]->remotePort);
+				fprintf(stdout, "Target %s:%u:\n", wp.directions[i]->remoteIp, wp.directions[i]->remotePort);
 				fprintf(stdout, "   Maximum allowed connections       : %u\n", wp.directions[i]->maxConnections);
 				fprintf(stdout, "   Currently established connections : %u\n", hashGetActive(wp.directions[i]->sessions));
 				fprintf(stdout, "   Session hash max depth            : %u\n", hashGetDepth(wp.directions[i]->sessions));
 			}
 
 		} else if (strncmp(line, "set", 3) == 0) {
-				if (strlen(line) <= 5) {	
+				if (strlen(line) <= 4) {	
 					fprintf(stdout, "You need to specify the number to requested connections!\n");
 				} else {
 					unsigned int request = atoi(line+4);
